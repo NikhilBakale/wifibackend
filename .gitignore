@@ -14,12 +14,6 @@ credentials.json
 client_secrets.json
 firebase-key.json
 
-# Large model files (use Git LFS if needed)
-*.pth
-*.pt
-*.h5
-*.onnx
-
 # Audio and media files
 static/audio/*
 static/spectrograms/*
