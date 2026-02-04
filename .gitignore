@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Credentials and secrets
+credentials.txt
+credentials.json
+client_secrets.json
+firebase-key.json
+
+# Large model files (use Git LFS if needed)
+*.pth
+*.pt
+*.h5
+*.onnx
+
+# Audio and media files
+static/audio/*
+static/spectrograms/*
+downloads/*
+
+# Keep directory structure
+!static/audio/.gitkeep
+!static/spectrograms/.gitkeep
+!downloads/.gitkeep
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment variables
+.env
+.env.local
