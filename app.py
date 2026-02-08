@@ -110,7 +110,15 @@ def serve_audio(filename):
 class GoogleDriveService:
     def __init__(self):
         self.drive = None
-        self.initialize_drive()
+        self._initialized = False
+        # Don't initialize on startup - do it lazily
+        # self.initialize_drive()
+    
+    def ensure_initialized(self):
+        """Lazy initialization of Google Drive"""
+        if not self._initialized:
+            self.initialize_drive()
+            self._initialized = True
     
     def initialize_drive(self):
         """Initialize Google Drive connection"""
@@ -190,14 +198,14 @@ class GoogleDriveService:
             
             self.drive = GoogleDrive(gauth)
             logger.info("Google Drive initialized successfully")
+            return True
             
         except Exception as e:
             logger.error(f"Failed to initialize Google Drive: {e}")
-            logger.error("Please ensure you have:")
-            logger.error("1. Created client_secrets.json with your Google API credentials")
-            logger.error("2. Enabled Google Drive API in Google Cloud Console")
-            logger.error("3. Set up OAuth 2.0 Client ID credentials")
-            raise e
+            logger.error("Google Drive features will be unavailable")
+            logger.error("Make sure CREDENTIALS_JSON and CLIENT_SECRETS_JSON are set in Azure App Settings")
+            self.drive = None
+            return False
     
     def search_bat_folder(self, server_num, client_num, bat_id):
         """
@@ -355,7 +363,14 @@ class GoogleDriveService:
             raise e
 
 # Initialize Google Drive service
-drive_service = GoogleDriveService()
+# Initialize Google Drive service (with error handling)
+drive_service = None
+try:
+    drive_service = GoogleDriveService()
+    logger.info("✅ Google Drive service created (will initialize on first use)")
+except Exception as e:
+    logger.error(f"⚠️ Failed to create Google Drive service: {e}")
+    logger.error("API will start but Google Drive features will be unavailable")
 
 @app.route('/api/debug/folders')
 def list_all_folders():
@@ -593,12 +608,31 @@ def upload_sensor_file(bat_id):
             'message': str(e)
         }), 500
 
+@app.route('/')
+def index():
+    """Root endpoint"""
+    return jsonify({
+        'success': True,
+        'message': 'Bat Monitoring Backend API',
+        'version': '1.0.0',
+        'status': 'running',
+        'endpoints': {
+            'health': '/api/health',
+            'folders': '/api/folders/list',
+            'predict': '/api/audio/predict'
+        },
+        'ml_model_available': ML_MODEL_AVAILABLE,
+        'timestamp': datetime.now().isoformat()
+    })
+
 @app.route('/api/health')
 def health_check():
     """Health check endpoint"""
     return jsonify({
         'success': True,
         'message': 'Backend service is running',
+        'ml_model_available': ML_MODEL_AVAILABLE,
+        'param_extractor_available': PARAM_EXTRACTOR_AVAILABLE,
         'timestamp': datetime.now().isoformat()
     })
 
