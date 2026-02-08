@@ -211,6 +211,11 @@ class GoogleDriveService:
         """
         Search for folder with pattern: SERVER{server_num}_CLIENT{client_num}_{bat_id}
         """
+        self.ensure_initialized()
+        if self.drive is None:
+            logger.error("Google Drive not available")
+            return None
+            
         folder_name = f"SERVER{server_num}_CLIENT{client_num}_{bat_id}"
         
         try:
@@ -233,6 +238,11 @@ class GoogleDriveService:
         """
         Search for folder by exact name (case-sensitive)
         """
+        self.ensure_initialized()
+        if self.drive is None:
+            logger.error("Google Drive not available")
+            return None
+            
         try:
             query = f"title='{folder_name}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
             file_list = self.drive.ListFile({'q': query}).GetList()
@@ -250,6 +260,11 @@ class GoogleDriveService:
     
     def get_folder_files(self, folder_id):
         """Get all files in a specific folder"""
+        self.ensure_initialized()
+        if self.drive is None:
+            logger.error("Google Drive not available")
+            return []
+            
         try:
             query = f"'{folder_id}' in parents and trashed=false"
             file_list = self.drive.ListFile({'q': query}).GetList()
@@ -277,6 +292,11 @@ class GoogleDriveService:
     
     def list_all_folders(self):
         """List all folders in Google Drive to debug"""
+        self.ensure_initialized()
+        if self.drive is None:
+            logger.error("Google Drive not available")
+            return []
+            
         try:
             query = "mimeType='application/vnd.google-apps.folder' and trashed=false"
             file_list = self.drive.ListFile({'q': query}).GetList()
@@ -298,6 +318,11 @@ class GoogleDriveService:
     
     def list_all_items_detailed(self):
         """List all items in Google Drive with detailed info for debugging"""
+        self.ensure_initialized()
+        if self.drive is None:
+            logger.error("Google Drive not available")
+            return []
+            
         try:
             # Get all items in root
             query = "'root' in parents and trashed=false"
@@ -323,6 +348,11 @@ class GoogleDriveService:
 
     def download_and_store_locally(self, file_id, file_name, local_folder):
         """Download a file from Google Drive and store locally"""
+        self.ensure_initialized()
+        if self.drive is None:
+            logger.error("Google Drive not available")
+            return None
+            
         try:
             # Create local storage directory if it doesn't exist
             os.makedirs(local_folder, exist_ok=True)
@@ -342,22 +372,16 @@ class GoogleDriveService:
     
     def download_file_to_path(self, file_id, destination_path):
         """Download a file from Google Drive to a specific path"""
+        self.ensure_initialized()
+        if self.drive is None:
+            logger.error("Google Drive not available")
+            raise Exception("Google Drive not initialized")
+            
         try:
             file = self.drive.CreateFile({'id': file_id})
             file.GetContentFile(destination_path)
             logger.info(f"Downloaded file {file_id} to {destination_path}")
             return destination_path
-        except Exception as e:
-            logger.error(f"Error downloading file {file_id}: {e}")
-            raise e
-
-    def download_file_to_path(self, file_id, local_path):
-        """Download a file from Google Drive to a specific path"""
-        try:
-            file = self.drive.CreateFile({'id': file_id})
-            file.GetContentFile(local_path)
-            logger.info(f"Downloaded file {file_id} to {local_path}")
-            return local_path
         except Exception as e:
             logger.error(f"Error downloading file {file_id}: {e}")
             raise e
