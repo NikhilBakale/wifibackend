@@ -120,21 +120,34 @@ class GuanoMetadataExtractor:
                 'note': None
             }
         
+        # Extract location coordinates properly
+        loc_position = metadata.get('Loc Position') or metadata.get('GUANO|Loc Position')
+        latitude = None
+        longitude = None
+        if loc_position:
+            try:
+                parts = loc_position.strip().split()
+                if len(parts) >= 2:
+                    latitude = parts[0]
+                    longitude = parts[1]
+            except Exception:
+                pass
+        
         return {
-            'timestamp': metadata.get('Timestamp', metadata.get('GUANO|Timestamp')),
-            'latitude': metadata.get('Loc Position', metadata.get('GUANO|Loc Position', '').split()[0] if 'Loc Position' in metadata else None),
-            'longitude': metadata.get('Loc Position', metadata.get('GUANO|Loc Position', '').split()[1] if 'Loc Position' in metadata else None),
-            'temperature': metadata.get('Temperature Ext', metadata.get('GUANO|Temperature Ext')),
-            'humidity': metadata.get('Humidity', metadata.get('GUANO|Humidity')),
-            'species': metadata.get('Species Manual ID', metadata.get('GUANO|Species Manual ID')),
-            'length': metadata.get('Length', metadata.get('GUANO|Length')),
-            'sample_rate': metadata.get('TE', metadata.get('GUANO|TE')),
-            'filter_hp': metadata.get('Filter HP', metadata.get('GUANO|Filter HP')),
-            'filter_lp': metadata.get('Filter LP', metadata.get('GUANO|Filter LP')),
-            'make': metadata.get('Make', metadata.get('GUANO|Make')),
-            'model': metadata.get('Model', metadata.get('GUANO|Model')),
-            'firmware': metadata.get('Firmware Version', metadata.get('GUANO|Firmware Version')),
-            'note': metadata.get('Note', metadata.get('GUANO|Note')),
+            'timestamp': metadata.get('Timestamp') or metadata.get('GUANO|Timestamp'),
+            'latitude': latitude,
+            'longitude': longitude,
+            'temperature': metadata.get('Temperature Ext') or metadata.get('GUANO|Temperature Ext'),
+            'humidity': metadata.get('Humidity') or metadata.get('GUANO|Humidity'),
+            'species': metadata.get('Species Manual ID') or metadata.get('GUANO|Species Manual ID'),
+            'length': metadata.get('Length') or metadata.get('GUANO|Length'),
+            'sample_rate': metadata.get('TE') or metadata.get('GUANO|TE'),
+            'filter_hp': metadata.get('Filter HP') or metadata.get('GUANO|Filter HP'),
+            'filter_lp': metadata.get('Filter LP') or metadata.get('GUANO|Filter LP'),
+            'make': metadata.get('Make') or metadata.get('GUANO|Make'),
+            'model': metadata.get('Model') or metadata.get('GUANO|Model'),
+            'firmware': metadata.get('Firmware Version') or metadata.get('GUANO|Firmware Version'),
+            'note': metadata.get('Note') or metadata.get('GUANO|Note'),
             'raw_metadata': metadata  # Include full metadata for reference
         }
 

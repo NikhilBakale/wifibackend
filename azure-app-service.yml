@@ -1,0 +1,46 @@
+# Azure App Service Configuration
+# Place this in .github/workflows/azure-app-service.yml
+
+name: Deploy Bat Backend to Azure App Service
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'bat-admin-backend-main/**'
+  workflow_dispatch:
+
+env:
+  AZURE_WEBAPP_NAME: bat-backend-app    # Change to your app name
+  AZURE_WEBAPP_PACKAGE_PATH: 'bat-admin-backend-main'
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python version
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Create and activate virtual environment
+        run: |
+          cd ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+          python -m venv venv
+          source venv/bin/activate
+      
+      - name: Install dependencies
+        run: |
+          cd ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+          pip install -r requirements.txt
+        
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}

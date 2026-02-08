@@ -52,7 +52,8 @@ CORS(app, origins=[
     "http://localhost:3000", 
     "https://frontend-ten-eta-28.vercel.app",
     "https://*.vercel.app",
-    "https://frontend-3scf.vercel.app"
+    "https://frontend-3scf.vercel.app",
+    "https://*.azurestaticapps.net"  # Allow Azure Static Web Apps
 ]) # Enable CORS for React frontend
 
 # Configure logging
@@ -330,6 +331,28 @@ class GoogleDriveService:
         except Exception as e:
             logger.error(f"Error downloading file {file_id}: {e}")
             return None
+    
+    def download_file_to_path(self, file_id, destination_path):
+        """Download a file from Google Drive to a specific path"""
+        try:
+            file = self.drive.CreateFile({'id': file_id})
+            file.GetContentFile(destination_path)
+            logger.info(f"Downloaded file {file_id} to {destination_path}")
+            return destination_path
+        except Exception as e:
+            logger.error(f"Error downloading file {file_id}: {e}")
+            raise e
+
+    def download_file_to_path(self, file_id, local_path):
+        """Download a file from Google Drive to a specific path"""
+        try:
+            file = self.drive.CreateFile({'id': file_id})
+            file.GetContentFile(local_path)
+            logger.info(f"Downloaded file {file_id} to {local_path}")
+            return local_path
+        except Exception as e:
+            logger.error(f"Error downloading file {file_id}: {e}")
+            raise e
 
 # Initialize Google Drive service
 drive_service = GoogleDriveService()
@@ -1060,6 +1083,8 @@ def predict_single_audio():
         plt.figure(figsize=(12, 6))
         librosa.display.specshow(S_db, sr=sr, hop_length=256, x_axis='time', y_axis='hz', cmap='viridis')
         plt.colorbar(format='%+2.0f dB')
+        plt.ylim(10000, 200000)  # Set frequency range from 10 kHz to 200 kHz
+        plt.yticks(np.arange(10000, 200001, 20000))  # Set y-axis ticks every 20 kHz
         plt.title(file_name, color='white', fontsize=14)
         plt.xlabel('Time (s)', color='white')
         plt.ylabel('Frequency (Hz)', color='white')
@@ -1197,6 +1222,8 @@ def batch_process_folder():
                     plt.figure(figsize=(10, 6))
                     librosa.display.specshow(S_db, sr=sr, hop_length=256, x_axis='time', y_axis='hz', cmap='viridis')
                     plt.colorbar(format='%+2.0f dB')
+                    plt.ylim(10000, 200000)  # Set frequency range from 10 kHz to 200 kHz
+                    plt.yticks(np.arange(10000, 200001, 20000))  # Set y-axis ticks every 20 kHz
                     plt.title(audio_file['name'])
                     plt.tight_layout()
                     plt.savefig(tmp_spec.name, dpi=150, bbox_inches='tight', facecolor='black')
@@ -1463,6 +1490,280 @@ def get_folder_audio_with_predictions():
     
     except Exception as e:
         logger.error(f"❌ Error getting folder audio: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+# ============================================================================
+# STANDALONE ENDPOINTS
+# Format: standalone{num}_{DDMMYYYY}_{HHMM}
+# ============================================================================
+
+@app.route('/api/standalone/folders/<standalone_num>', methods=['GET'])
+def get_standalone_folders(standalone_num):
+    """
+    List all folders for a specific standalone device
+    Returns ONLY folders matching pattern: STANDALONE{standalone_num}_{DDMMYYYY}_{HHMM}
+    """
+    try:
+        all_folders = drive_service.list_all_folders()
+        
+        import re
+        # Pattern: standalone1_DDMMYYYY_HHMM (8 digits underscore 4 digits) - lowercase only
+        pattern = rf'^standalone{standalone_num}_(\d{{8}})_(\d{{4}})$'
+        
+        standalone_folders = []
+        for folder in all_folders:
+            match = re.match(pattern, folder['name'].lower())
+            if match:
+                date_raw = match.group(1)  # 15082026
+                time_raw = match.group(2)  # 1430
+                
+                # Format date: DD/MM/YYYY
+                date_str = f"{date_raw[:2]}/{date_raw[2:4]}/{date_raw[4:]}"
+                
+                # Format time: HH:MM
+                time_str = f"{time_raw[:2]}:{time_raw[2:]}"
+                
+                timestamp_part = f"{date_raw}_{time_raw}"
+                
+                # Get folder metadata (file count, total size)
+                folder_id = folder['id']
+                try:
+                    files_in_folder = drive_service.list_files_in_folder(folder_id)
+                    file_count = len(files_in_folder)
+                    total_size = sum(int(f.get('fileSize', 0)) for f in files_in_folder)
+                except:
+                    file_count = 0
+                    total_size = 0
+                
+                standalone_folders.append({
+                    'id': folder_id,
+                    'name': folder['name'],
+                    'folder_id': folder['name'],
+                    'timestamp': timestamp_part,
+                    'modified_date': folder.get('modifiedDate', ''),
+                    'date': date_str,
+                    'time': time_str,
+                    'file_count': file_count,
+                    'total_size': total_size,
+                    'total_size_formatted': format_bytes(total_size)
+                })
+        
+        # Sort by timestamp (most recent first)
+        standalone_folders.sort(key=lambda x: x['timestamp'], reverse=True)
+        
+        return jsonify({
+            'success': True,
+            'total_folders': len(standalone_folders),
+            'folders': standalone_folders
+        })
+    
+    except Exception as e:
+        logger.error(f"Error listing folders for standalone{standalone_num}: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': str(e),
+            'folders': []
+        }), 500
+
+
+@app.route('/api/standalone/folder/files', methods=['POST'])
+def list_standalone_folder_audio_files():
+    """
+    Instantly list all audio files in a standalone folder WITHOUT processing
+    Returns basic file info: name, size, id - NO predictions
+    """
+    try:
+        data = request.get_json()
+        standalone_num = data.get('standalone_num', '1')
+        folder_timestamp = data.get('folder_timestamp')
+        
+        if not folder_timestamp:
+            return jsonify({
+                'success': False,
+                'message': 'Missing folder_timestamp parameter'
+            }), 400
+        
+        logger.info(f"Listing audio files in folder: standalone{standalone_num}_{folder_timestamp}")
+        
+        # Search for folder
+        folder_name = f"standalone{standalone_num}_{folder_timestamp}"
+        folder = drive_service.search_folder_by_name(folder_name)
+        
+        if not folder:
+            return jsonify({
+                'success': False,
+                'message': f'Folder not found: {folder_name}'
+            }), 404
+        
+        # Get all files in folder
+        files = drive_service.get_folder_files(folder['id'])
+        
+        # Filter audio files and return basic info only
+        audio_files = []
+        for f in files:
+            if f['name'].lower().endswith('.wav'):
+                audio_files.append({
+                    'file_id': f['id'],
+                    'file_name': f['name'],
+                    'size': f.get('fileSize', 0),
+                    'modified_date': f.get('modifiedDate', ''),
+                    'download_url': f.get('downloadUrl', '')
+                })
+        
+        logger.info(f"Found {len(audio_files)} audio files")
+        
+        return jsonify({
+            'success': True,
+            'folder_name': folder_name,
+            'total_files': len(audio_files),
+            'files': audio_files
+        })
+    
+    except Exception as e:
+        logger.error(f"Error listing standalone folder files: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/standalone/audio/predict', methods=['POST'])
+def predict_standalone_single_audio():
+    """
+    Predict species for a single audio file from standalone device
+    Expects: file_id, file_name, standalone_num, folder_timestamp
+    Returns: Multi-species predictions with confidence (SAME FORMAT AS CLIENT ENDPOINT)
+    """
+    data = None
+    try:
+        data = request.get_json()
+        file_id = data.get('file_id')
+        file_name = data.get('file_name')
+        standalone_num = data.get('standalone_num', '1')
+        folder_timestamp = data.get('folder_timestamp', '')
+        
+        if not file_id:
+            return jsonify({'success': False, 'message': 'Missing file_id'}), 400
+        
+        logger.info(f"🔬 Predicting standalone audio: {file_name} (standalone{standalone_num}_{folder_timestamp})")
+        
+        # Generate filenames for caching (using file_id like client endpoint)
+        spec_filename = f"{file_id}.png"
+        audio_filename = f"{file_id}_slow.wav"
+        spectrogram_path = SPECTROGRAMS_DIR / spec_filename
+        audio_save_path = AUDIO_DIR / audio_filename
+        
+        base_url = request.host_url.rstrip('/')
+        spectrogram_url = f"{base_url}/static/spectrograms/{spec_filename}"
+        audio_url = f"{base_url}/static/audio/{audio_filename}"
+        
+        # Download audio file from Google Drive
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_audio:
+            file_obj = drive_service.drive.CreateFile({'id': file_id})
+            file_obj.GetContentFile(tmp_audio.name)
+            audio_path = tmp_audio.name
+        
+        # Get audio info
+        import wave
+        duration = 0
+        sample_rate = 0
+        try:
+            with wave.open(audio_path, 'rb') as wav_file:
+                frames = wav_file.getnframes()
+                sample_rate = wav_file.getframerate()
+                duration = frames / float(sample_rate) if sample_rate > 0 else 0
+        except Exception as e:
+            logger.warning(f"Could not get audio info: {e}")
+        
+        # Generate spectrogram using librosa (same as client endpoint)
+        try:
+            import librosa
+            import librosa.display
+            
+            y, sr = librosa.load(audio_path, sr=None)
+            D = librosa.stft(y, n_fft=2048, hop_length=256)
+            S_db = librosa.amplitude_to_db(np.abs(D), ref=np.max)
+            
+            plt.figure(figsize=(12, 6))
+            librosa.display.specshow(S_db, sr=sr, hop_length=256, x_axis='time', y_axis='hz', cmap='viridis')
+            plt.colorbar(format='%+2.0f dB')
+            plt.ylim(10000, 200000)  # Set frequency range from 10 kHz to 200 kHz
+            plt.yticks(np.arange(10000, 200001, 20000))  # Set y-axis ticks every 20 kHz
+            plt.title(file_name, color='white', fontsize=14)
+            plt.xlabel('Time (s)', color='white')
+            plt.ylabel('Frequency (Hz)', color='white')
+            plt.tick_params(colors='white')
+            plt.tight_layout()
+            plt.savefig(str(spectrogram_path), dpi=150, bbox_inches='tight', facecolor='black')
+            plt.close()
+            logger.info(f"Generated spectrogram: {spectrogram_path}")
+        except Exception as e:
+            logger.error(f"Failed to generate spectrogram: {e}")
+        
+        # Run ML prediction
+        species_predictions = []
+        if ML_MODEL_AVAILABLE and spectrogram_path.exists():
+            try:
+                from models.predict import classify_image_multi
+                all_species = classify_image_multi(str(spectrogram_path), threshold=0.20)
+                # all_species is list of tuples: [(species, confidence), ...]
+                species_predictions = [
+                    {'species': sp[0], 'confidence': round(sp[1], 1)}
+                    for sp in all_species
+                ]
+                logger.info(f"ML predictions: {len(species_predictions)} species detected")
+            except Exception as e:
+                logger.error(f"ML prediction failed: {e}")
+        
+        # Extract call parameters
+        call_parameters = {}
+        if PARAM_EXTRACTOR_AVAILABLE and extract_call_parameters:
+            try:
+                call_parameters = extract_call_parameters(Path(audio_path))
+            except Exception as e:
+                logger.error(f"Parameter extraction failed: {e}")
+        
+        # Extract GUANO metadata
+        metadata = {}
+        try:
+            from guano_metadata_extractor import extract_metadata_from_file
+            metadata = extract_metadata_from_file(audio_path)
+        except Exception as e:
+            logger.warning(f"Could not extract metadata: {e}")
+        
+        # Save processed audio file (slowed down version)
+        import shutil
+        shutil.copy(audio_path, str(audio_save_path))
+        
+        # Cleanup temp file
+        try:
+            os.unlink(audio_path)
+        except:
+            pass
+        
+        return jsonify({
+            'success': True,
+            'file_id': file_id,
+            'file_name': file_name,
+            'species': species_predictions,
+            'species_count': len(species_predictions),
+            'predicted_species': species_predictions[0]['species'] if species_predictions else None,
+            'confidence': species_predictions[0]['confidence'] if species_predictions else 0,
+            'call_parameters': call_parameters,
+            'metadata': metadata,
+            'duration': duration,
+            'sample_rate': sample_rate,
+            'spectrogram_url': spectrogram_url,
+            'audio_url': audio_url,
+            'from_cache': False
+        })
+        
+    except Exception as e:
+        logger.error(f"Error predicting standalone audio: {e}", exc_info=True)
         return jsonify({
             'success': False,
             'message': str(e)

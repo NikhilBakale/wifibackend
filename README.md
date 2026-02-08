@@ -1,82 +1,158 @@
-# Google Drive Backend Service
+# Bat Monitoring Backend API
 
-This backend service handles fetching files from Google Drive folders with the naming pattern: `SERVER{x}_CLIENT{y}_{batId}`
+Backend API for the Bat Monitoring System deployed on Azure App Service.
 
-## Setup Instructions
+## Features
 
-### 1. Install Python dependencies:
+- Flask REST API for bat species classification
+- Google Drive integration for audio file management
+- ML-powered bat species prediction using EfficientNet
+- Spectrogram generation and analysis
+- Audio call parameter extraction
+
+## Tech Stack
+
+- **Framework**: Flask 2.3.3
+- **ML Models**: PyTorch + EfficientNet
+- **Audio Processing**: Librosa, SciPy
+- **Cloud Storage**: Google Drive API
+- **Deployment**: Azure App Service (Linux)
+
+## Azure Deployment
+
+This application is configured for Azure App Service deployment with:
+- Python 3.11 runtime (`runtime.txt`)
+- Gunicorn WSGI server (`startup.sh`)
+- Automated dependency installation
+- Environment variable support for credentials
+
+### Required Environment Variables
+
+Configure these in Azure App Service Configuration:
+
+```
+CLIENT_SECRETS_JSON=<your-google-client-secrets-json>
+CREDENTIALS_JSON=<your-google-credentials-json>
+FLASK_ENV=production
+PORT=8000
+```
+
+### Deployment Methods
+
+#### Option 1: GitHub Actions (Recommended)
+1. Set up Azure App Service
+2. Configure deployment credentials
+3. Add secrets to GitHub repository:
+   - `AZURE_WEBAPP_PUBLISH_PROFILE`
+4. Push to main branch - auto-deploys via `azure-app-service.yml`
+
+#### Option 2: Azure CLI
 ```bash
-cd backend
+az webapp up --name <your-app-name> --resource-group <your-rg> --runtime PYTHON:3.11
+```
+
+#### Option 3: Git Deployment
+```bash
+# Add Azure remote
+git remote add azure <azure-git-url>
+
+# Deploy
+git push azure main
+```
+
+## Local Development
+
+### Prerequisites
+- Python 3.11+
+- pip
+
+### Setup
+
+1. Clone the repository:
+```bash
+git clone https://github.com/NikhilBakale/wifibackend.git
+cd wifibackend
+```
+
+2. Create virtual environment:
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+3. Install dependencies:
+```bash
 pip install -r requirements.txt
 ```
 
-### 2. Google Drive API Setup:
+4. Set up Google Drive credentials:
+   - Create a project in Google Cloud Console
+   - Enable Google Drive API
+   - Create OAuth 2.0 credentials
+   - Download and save as `client_secrets.json`
 
-#### Step 2a: Create Google Cloud Project
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select existing one
-3. Enable Google Drive API:
-   - Go to "APIs & Services" → "Library"
-   - Search for "Google Drive API"
-   - Click "Enable"
-
-#### Step 2b: Create OAuth 2.0 Credentials
-1. Go to "APIs & Services" → "Credentials"
-2. Click "Create Credentials" → "OAuth 2.0 Client ID"
-3. If prompted, configure the OAuth consent screen first
-4. Choose "Desktop application" as application type
-5. Give it a name (e.g., "BCIT Admin Panel")
-6. Download the JSON file
-7. Rename it to `client_secrets.json` and place it in the backend folder
-
-### 3. First-time Authentication:
-```bash
-# Run the setup script to authenticate
-python setup_drive.py
-```
-
-This will:
-- Check if your client_secrets.json is valid
-- Open a browser for Google authentication
-- Save credentials for future use
-
-### 4. Run the backend service:
+5. Run the application:
 ```bash
 python app.py
 ```
 
+The API will be available at `http://localhost:5000`
+
 ## API Endpoints
 
-- `GET /api/health` - Health check
-- `GET /api/bat/{batId}/files?server={serverNum}&client={clientNum}` - Get files for a BAT ID
-- `GET /api/file/{fileId}?name={fileName}` - Download a specific file
+### Health Check
+- `GET /` - Returns API status
 
-## Folder Structure Expected in Google Drive
+### Google Drive Operations
+- `GET /folders` - List all folders
+- `GET /folder/<folder_id>` - Get folder details and files
+- `GET /download/<file_id>` - Download file from Google Drive
+- `POST /predict-folder/<folder_id>` - Predict bat species for all audio files in folder
+
+### Standalone Predictions
+- `POST /predict-standalone` - Upload and predict single audio file
+
+### Configuration
+- `GET /config` - Get ML model availability status
+
+## Project Structure
 
 ```
-SERVER1_CLIENT1_121/
-├── Spectrogram.jpg
-├── Camera.jpg
-└── Sensor.txt
+bat-admin-backend-main/
+├── app.py                          # Main Flask application
+├── requirements.txt                # Python dependencies
+├── startup.sh                      # Azure startup script
+├── runtime.txt                     # Python version specification
+├── Procfile                        # Process file for deployment
+├── .deployment                     # Azure deployment config
+├── settings.yaml                   # Google Drive settings
+├── models/                         # ML models and prediction code
+│   ├── predict.py
+│   ├── bat_28.pth
+│   └── classes_28.json
+├── static/                         # Static files (generated)
+│   ├── spectrograms/
+│   └── audio/
+├── spectrogram_analyzer.py         # Audio analysis utilities
+└── guano_metadata_extractor.py     # Metadata extraction
+
 ```
 
-## Troubleshooting
+## Model Information
 
-### "Missing required setting client_config" Error
-- Make sure `client_secrets.json` exists and is valid
-- Run `python setup_drive.py` to verify setup
+The application uses EfficientNet-B0 trained on bat call spectrograms for species classification.
 
-### "Access denied" or "Permission denied" errors
-- Ensure the Google account has access to the folders
-- Check that Google Drive API is enabled in your project
+## CORS Configuration
 
-### "File not found" errors
-- Verify folder naming matches: `SERVER{x}_CLIENT{y}_{batId}`
-- Check that files exist with exact names: `Spectrogram.jpg`, `Camera.jpg`, `Sensor.txt`
+Configured to accept requests from:
+- Local development (localhost:5173, 5174, 5175, 3000)
+- Vercel deployments (*.vercel.app)
+- Azure Static Web Apps (*.azurestaticapps.net)
 
-## Notes
+## License
 
-- Credentials are saved in `credentials.json` for future use
-- The service expects specific file names (case-sensitive)
-- Files are temporarily downloaded and streamed to the frontend
-- Make sure the Google account has access to all required folders
+See LICENSE file for details.
+
+## Support
+
+For issues and questions, please open an issue on GitHub.

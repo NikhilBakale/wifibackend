@@ -4,39 +4,72 @@ __pycache__/
 *$py.class
 *.so
 .Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
 venv/
-env/
 ENV/
+env/
+.venv
 
-# Credentials and secrets
-credentials.txt
-credentials.json
-client_secrets.json
-firebase-key.json
-
-# Audio and media files
-static/audio/*
-static/spectrograms/*
-downloads/*
-
-# Keep directory structure
-!static/audio/.gitkeep
-!static/spectrograms/.gitkeep
-!downloads/.gitkeep
-
-# Logs
-*.log
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# IDE
+# IDEs
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Credentials and Secrets
+credentials.json
+credentials.txt
+client_secrets.json
+*.pem
+*.key
 
 # Environment variables
 .env
 .env.local
+
+# Static files (generated)
+static/spectrograms/*.png
+static/audio/*.wav
+
+# Keep folders but not contents
+!static/spectrograms/.gitkeep
+!static/audio/.gitkeep
+
+# Logs
+*.log
+
+# Models (if large)
+# models/*.pth
+# models/*.pt
+
+# Azure
+.azure/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Jupyter Notebook
+.ipynb_checkpoints
