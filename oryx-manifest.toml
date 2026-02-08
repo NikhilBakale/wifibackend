@@ -1,0 +1,8 @@
+# Oryx Build Configuration
+# Optimize build for Azure deployment
+
+[build]
+compressDestinationDir = false
+
+[python]
+targetPythonVersion = "3.11"
